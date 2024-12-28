@@ -3,7 +3,7 @@
 使用程式語言:Verilog
 
 ## Setting
-> 1. Switch: SW0 選擇模式
+> 1. Switch: SW0 選擇模式, SW1 是否開始遊戲
 > 2. KeyPad: 選擇位置
 >    
 >    <img src="https://i.imgur.com/ThHPAz4.png" width="150" />
@@ -22,10 +22,11 @@
 > 7. VGA: 顯示遊戲畫面
 
 ## 遊玩方法
-> 1. 用Switch開關選擇模式
-> 2. Keypad來選位置下棋
-> 3. 結束遊戲、顯示比分
-> 4. 按Button reset重新開始遊戲
+> 1. 用Switch(SW0)開關選擇模式
+> 2. 選擇完成後按下Switch(SW1)來開始遊戲
+> 3. Keypad來選位置下棋
+> 4. 結束遊戲、顯示比分
+> 5. 按Button reset重新開始遊戲
 
 ## 模式
 > 1. 單人模式
