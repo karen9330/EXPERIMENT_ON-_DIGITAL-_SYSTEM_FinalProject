@@ -17,7 +17,10 @@
 >    <img src="https://i.imgur.com/rBthPdG.png" width="150" />
 > 
 > 5. Seven-segment Display: 顯示比分
-> 6. VGA: 顯示遊戲畫面
+>
+>    <img src="https://i.imgur.com/QEitMCA.png" width="300" />
+>    
+> 7. VGA: 顯示遊戲畫面
 
 ## 遊玩方法
 > 1. 用Switch開關選擇模式
