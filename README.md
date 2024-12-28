@@ -8,8 +8,16 @@
 >    
 >    <img src="https://i.imgur.com/ThHPAz4.png" width="150" />
 > 3. Dot Matrix: 顯示回合數
-> 4. Seven-segment Display: 顯示比分
-> 5. VGA: 顯示遊戲畫面
+>    
+>    <img src="https://i.imgur.com/sQ8WJt2.png" width="150" />
+>    <img src="https://i.imgur.com/eQiL2kX.png" width="150" />
+>    <img src="https://i.imgur.com/vhvpnGM.png" width="150" />
+>    <img src="https://i.imgur.com/MdEQvBv.png" width="150" />
+>    <img src="https://i.imgur.com/Ugs4zBi.png" width="150" />
+>    <img src="https://i.imgur.com/rBthPdG.png" width="150" />
+> 
+> 5. Seven-segment Display: 顯示比分
+> 6. VGA: 顯示遊戲畫面
 
 ## 遊玩方法
 > 1. 用Switch開關選擇模式
