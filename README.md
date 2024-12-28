@@ -28,7 +28,7 @@
 ## 模式
 > 1. 單人模式
 >    
->    與Rule-Based Tic Tac Toe Bot進行對戰
+>    與電腦進行對戰(基於Rule-Based實作之Tic Tac Toe Bot)
 > 2. 雙人模式
 >
 >    兩個玩家對戰
