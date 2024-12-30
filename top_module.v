@@ -154,7 +154,7 @@ module gameController(
     input start,
     input [3:0] keyPressed,
     output reg isCorrect, 
-    output reg [2:0] state3,
+    output reg [3:0] state3,
 	output reg [2:0] round,
     output reg [1:0] lives,
     output reg [3:0] VGA_pos,
@@ -165,8 +165,8 @@ module gameController(
     parameter R1 = 3'd0, R2 = 3'd1, R3 = 3'd2, R4 = 3'd3;
 
     // 狀態定義
-    parameter IDLE=3'd0, SHOW_TASK=3'd1, PLAYING=3'd2,
-              GAME_OVER=3'd3, WIN=3'd4, WAIT = 3'd5;
+    parameter IDLE=4'd0, SHOW_TASK=4'd1, PLAYING=4'd2,
+              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,TIC_TAC_TOE_player1win = 4d'6,TIC_TAC_TOE_player2win = 4d'7;
 
     reg [3:0] prevKeyPressed;
     reg [2:0] pressCnt;
@@ -386,7 +386,7 @@ module gameController(
 			VGA_pos <= 4'b1111;
             state3 <= IDLE;
             isCorrect <= 1'd0;
-			round <= 2'd0;
+			round <= 3'd1;
             lives <= 2'd3;
             waitCnt <= 2'd0;
             pressCnt <= 3'd0;
@@ -402,13 +402,12 @@ module gameController(
             if( start ) begin
 
                 if( mode != preMode ) begin
-                    round <= 0;
+                    round <= 3'd1;
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
                 //遊戲一、二
                 if((mode == 2'd0) || (mode == 2'd1)) begin
-
                     //待輸入mode
                     if(state == 2'd0) begin
                         if( start == 1 ) begin
@@ -450,10 +449,11 @@ module gameController(
                         round <= round + 1;
                         if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
                         else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
-
-                        //if( AwinCNT == 3'd5 ) state3 <= WIN;
-                        //if( BwinCNT == 3'd5 ) state3 <= GAME_OVER;
-
+                        if(round == 3'd6) begin
+                            round <= 3'd1;
+                            if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
+                            else state3 <= TIC_TAC_TOE_player2win;
+                        end
                     end
                 end 
                 //遊戲三
@@ -845,9 +845,10 @@ module gameController(
                 end
             end
             else begin
+                state3 <= IDLE;
                 preMode <= mode; 
                 if( mode != preMode ) begin
-                    round <= 0;
+                    round <= 1;
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
@@ -975,7 +976,7 @@ endmodule
 
 module vgaDisplay(
     input  clk, rst,
-    input  [2:0] state3,
+    input  [3:0] state3,
     input  [3:0] VGA_pos,
     input  isCircle,
     output hsync, vsync,
@@ -1011,8 +1012,8 @@ module vgaDisplay(
     parameter GRID_COLS = 3;   // 3 欄
     parameter GRID_ROWS = 3;   // 3 行
 	 
-	parameter IDLE = 3'd0, SHOW_TASK = 3'd1, PLAYING = 3'd2,
-              GAME_OVER = 3'd3, WIN = 3'd4, WAIT = 3'd5;
+	parameter IDLE = 4'd0, SHOW_TASK = 4'd1, PLAYING = 4'd2,
+              GAME_OVER = 4'd3, WIN = 4'd4, WAIT = 4'd5,TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
 
     //==== 要把 3×160=480 的區域置中 => 左邊 offset_x=80 ====
     localparam OFFSET_X = 80;  // 左邊留 80 px
@@ -1061,6 +1062,18 @@ module vgaDisplay(
                 for(i=0;i<9;i=i+1) grid[i] <= 2'b00;
                 prevState <= state3;
             end
+            // 模式一、二 的 玩家一贏
+            if(state3 == TIC_TAC_TOE_player1win) begin
+                for(i = 0 ; i < 9 ; i = i + 1) begin
+                    grid[i] <= 2'd0;
+                end
+            end
+            // 模式一、二 的 玩家二贏
+            if(state3 == TIC_TAC_TOE_player2win) begin
+                for(i = 0 ; i < 9 ; i = i + 1) begin
+                    grid[i] <= 2'd1;
+                end
+            end
             // 當 VGA_pos<9 時 => 寫入對應格
             if(VGA_pos < 4'd9) begin
                 case(state3)
@@ -1069,6 +1082,12 @@ module vgaDisplay(
                     end
                     PLAYING, WAIT, GAME_OVER, WIN: begin
                         grid[VGA_pos] <= (isCircle) ? 2'd2 : 2'd1;
+                    end
+                    TIC_TAC_TOE_player1win: begin
+                        grid[VGA_pos] <= 2'd0;
+                    end
+                    TIC_TAC_TOE_player2win: begin
+                        grid[VGA_pos] <= 2'd1;
                     end
                 endcase
             end
