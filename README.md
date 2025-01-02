@@ -6,7 +6,7 @@
 > 1. Switch: (SW1,SW2)選擇模式, SW0 是否開始遊戲
 > 2. KeyPad: 選擇位置
 >    
->    <img src="https://i.imgur.com/ThHPAz4.png" width="150" />
+>    <img src="https://i.imgur.com/Euj2BeF.png" width="150" />
 > 3. Dot Matrix: 顯示回合數
 >    
 >    <img src="https://i.imgur.com/eQiL2kX.png" width="150" />
