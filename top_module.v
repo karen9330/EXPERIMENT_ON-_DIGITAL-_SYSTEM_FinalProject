@@ -486,8 +486,10 @@ module gameController(
                         board2 <= 9'd0;
                         winner <= 2'd0;
                         turn <= 1'd0;
-                        AwinCNT <= 3'd0;
-                        BwinCNT <= 3'd0;
+                        if( round == 3'd1 ) begin
+                            AwinCNT <= 3'd0;
+                            BwinCNT <= 3'd0;
+                        end
                     end
                     //遊戲進行中
                     else if(state == 2'd2) begin
