@@ -166,7 +166,7 @@ module gameController(
 
     // 狀態定義
     parameter IDLE=4'd0, SHOW_TASK=4'd1, PLAYING=4'd2,
-              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,TIC_TAC_TOE_player1win = 4d'6,TIC_TAC_TOE_player2win = 4d'7;
+              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
 
     reg [3:0] prevKeyPressed;
     reg [2:0] pressCnt;
