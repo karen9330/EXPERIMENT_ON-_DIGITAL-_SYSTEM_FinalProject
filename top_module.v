@@ -137,7 +137,7 @@ module top_module(
     dotMatrix dotMatrixInst(
         .clk(divClk_10000Hz),
         .rst(rst),
-        .mode(mode),
+        .start(start_w),
         .round(round_w),
         .dot_row(dot_row),
         .dot_col(dot_col)
@@ -405,7 +405,8 @@ module gameController(
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
-					 preMode <= mode;
+			    preMode <= mode;
+
                 //遊戲一、二
                 if((mode == 2'd0) || (mode == 2'd1)) begin
                     //待輸入mode
@@ -447,9 +448,11 @@ module gameController(
                     else if(state == 2'd3) begin
                         state <= 2'd0;
                         round <= round + 1;
+
                         if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
                         else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
-								else round <= round - 1;
+						else round <= round - 1;
+
                         if(round == 3'd6) begin
                             round <= 3'd1;
                             if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
@@ -457,6 +460,7 @@ module gameController(
                         end
                     end
                 end 
+
                 //遊戲三
                 else if(mode == 2'd2) begin
                     
@@ -852,7 +856,7 @@ module gameController(
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
-					 preMode <= mode; 
+				preMode <= mode; 
             end
         end
         
@@ -1175,7 +1179,7 @@ module dotMatrix(
     
     input rst,
     input clk,
-    input mode,
+    input start,
     input round,
     output reg [7:0] dot_row,
     output reg [7:0] dot_col
@@ -1192,20 +1196,20 @@ module dotMatrix(
         end
         else
         begin
-            output_cnt <= output_cnt + 1;  
-            case( output_cnt )
-                3'd0 : dot_row <= 8'b01111111;
-                3'd1 : dot_row <= 8'b10111111;
-                3'd2 : dot_row <= 8'b11011111;
-                3'd3 : dot_row <= 8'b11101111;
-                3'd4 : dot_row <= 8'b11110111;
-                3'd5 : dot_row <= 8'b11111011;
-                3'd6 : dot_row <= 8'b11111101;
-                3'd7 : dot_row <= 8'b11111110;
-            endcase 
+            if( start ) begin
+                output_cnt <= output_cnt + 1;  
+                case( output_cnt )
+                    3'd0 : dot_row <= 8'b01111111;
+                    3'd1 : dot_row <= 8'b10111111;
+                    3'd2 : dot_row <= 8'b11011111;
+                    3'd3 : dot_row <= 8'b11101111;
+                    3'd4 : dot_row <= 8'b11110111;
+                    3'd5 : dot_row <= 8'b11111011;
+                    3'd6 : dot_row <= 8'b11111101;
+                    3'd7 : dot_row <= 8'b11111110;
+                endcase 
 
-            if( (mode == 2'd0) || (mode == 2'd1) ) begin
-                    if( round == 3'd1 ) begin
+                if( round == 3'd1 ) begin
                     case( output_cnt )
                         3'd0 : dot_col <= 8'b00000000;
                         3'd1 : dot_col <= 8'b00010000;
@@ -1267,6 +1271,7 @@ module dotMatrix(
                 end
                 else dot_col <= 8'b0; 
             end
+            else dot_col <= 8'b0;
             
             
         end
