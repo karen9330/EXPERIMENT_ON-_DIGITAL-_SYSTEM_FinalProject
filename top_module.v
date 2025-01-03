@@ -11,7 +11,6 @@ module top_module(
     input start_w,
     output hsync, vsync,
     output [3:0] VGA_R, VGA_G, VGA_B,
-    output [6:0] display, // mode 3 
     output [6:0] displayA, // mode 12
     output [6:0] displayB, // mode 12 
     output [3:0] keypadRow,
@@ -20,7 +19,7 @@ module top_module(
 );
     wire divClk_1Hz, divClk_2Hz, divClk_100Hz, divClk_10000Hz, divClk_25MHz;
 
-    // 1Hz 時鐘分頻
+    // 1Hz
     divider #(
         .TIME_EXPIRE(`TimeExpire_1Hz)
     ) divider_1Hz(
@@ -38,7 +37,7 @@ module top_module(
         .divClk(divClk_25MHz)
     );
 
-    // 100Hz 時鐘分頻
+    // 100Hz 
     divider #(
         .TIME_EXPIRE(`TimeExpire_100Hz)
     ) divider_100Hz(
@@ -47,7 +46,7 @@ module top_module(
         .divClk(divClk_100Hz)
     );
 
-    // 2Hz 時鐘分頻
+    // 2Hz 
     divider #(
         .TIME_EXPIRE(`TimeExpire_2Hz)
     ) divider_2Hz(
@@ -67,16 +66,13 @@ module top_module(
 
     //記憶遊戲
     wire isCircle_w;
-    wire [2:0] round_w, lives_w;
+    wire [2:0] round_w;
     wire [3:0] keyPressed; 
     wire [2:0] state3_w;
     wire [3:0] VGA_pos_w;
     wire [2:0] showCnt_w;
     wire [2:0] a_cnt,b_cnt;
 
-    //====================================================
-    // Keypad 檢測模組
-    //====================================================
     checkKeypad keypadInst (
         .clk(divClk_100Hz),
         .rst(rst),
@@ -85,16 +81,12 @@ module top_module(
         .VGA_pos(keyPressed)
     );
 
-    //====================================================
-    // GameController (FSM)
-    //====================================================
     gameController gameControllerInst (
         .clk(divClk_2Hz),
         .rst(rst),
         .isCorrect(isCircle_w),
         .keyPressed(keyPressed), 
         .round(round_w),
-        .lives(lives_w),
         .state3(state3_w),
         .VGA_pos(VGA_pos_w),
         .chooseMode(mode),
@@ -103,9 +95,6 @@ module top_module(
         .start(start_w)
     );
 
-    //====================================================
-    // VGA 顯示
-    //====================================================
     vgaDisplay vgaDisplayInst( 
         .clk(divClk_25MHz),
         .rst(rst),
@@ -117,11 +106,6 @@ module top_module(
         .VGA_R(VGA_R),
         .VGA_G(VGA_G),
         .VGA_B(VGA_B)
-    );
-
-    sevenDisplay sevenDisplayInst(
-        .in(lives_w),
-        .out(display)
     );
 
     sevenDisplay sevenDisplayInstMode12A(
@@ -137,7 +121,6 @@ module top_module(
     dotMatrix dotMatrixInst(
         .clk(divClk_10000Hz),
         .rst(rst),
-        .start(start_w),
         .round(round_w),
         .dot_row(dot_row),
         .dot_col(dot_col)
@@ -145,9 +128,6 @@ module top_module(
 
 endmodule
 
-//====================================================
-// gameController
-//====================================================
 module gameController(
     input clk, rst,
     input [1:0]chooseMode, //模式(mode 0:單機,mode 1:雙人)
@@ -156,17 +136,17 @@ module gameController(
     output reg isCorrect, 
     output reg [3:0] state3,
 	output reg [2:0] round,
-    output reg [1:0] lives,
     output reg [3:0] VGA_pos,
     output reg [2:0] AwinCNT, //玩家一比分
     output reg [2:0] BwinCNT //玩家二or電腦比分
 );
 	
-    parameter R1 = 3'd0, R2 = 3'd1, R3 = 3'd2, R4 = 3'd3;
+    parameter R1 = 3'd1, R2 = 3'd2, R3 = 3'd3, R4 = 3'd4;
 
     // 狀態定義
     parameter IDLE=4'd0, SHOW_TASK=4'd1, PLAYING=4'd2,
-              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
+              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,
+              TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
 
     reg [3:0] prevKeyPressed;
     reg [2:0] pressCnt;
@@ -387,7 +367,6 @@ module gameController(
             state3 <= IDLE;
             isCorrect <= 1'd0;
 			round <= 3'd1;
-            lives <= 2'd3;
             waitCnt <= 2'd0;
             pressCnt <= 3'd0;
             prevKeyPressed <= 4'b1111;
@@ -397,16 +376,16 @@ module gameController(
 			turn <= 1'b0;
 			board1 <= 1'b0;
 			board2 <= 1'b0;
+            BwinCNT <= 3'd0;
         end
         else begin
             if(start == 1'd1) begin
                 if( mode != preMode ) begin
                     round <= 3'd1;
-                    AwinCNT <= 3'd6;
-                    BwinCNT <= 3'd6;
+                    AwinCNT <= 3'd3;    // 因為 AwinCNT 和 lives 共用
+                    BwinCNT <= 3'd3;
                 end
-			    preMode <= mode;
-
+					preMode <= mode;
                 //遊戲一、二
                 if((mode == 2'd0) || (mode == 2'd1)) begin
                     //待輸入mode
@@ -448,19 +427,16 @@ module gameController(
                     else if(state == 2'd3) begin
                         state <= 2'd0;
                         round <= round + 1;
-
                         if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
                         else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
 						else round <= round - 1;
-
-                        if(round == 3'd6) begin
+                        if(round == 3'd5 && winner != 2'd3) begin // 因為 round 的增加會在下一個 clk 來時，所以在這裡要判斷 3'd5
                             round <= 3'd1;
                             if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
                             else state3 <= TIC_TAC_TOE_player2win;
                         end
                     end
                 end 
-
                 //遊戲三
                 else if(mode == 2'd2) begin
                     
@@ -561,7 +537,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -572,7 +548,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -584,7 +560,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -599,7 +575,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -610,7 +586,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -621,7 +597,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -632,7 +608,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -644,7 +620,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -659,7 +635,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -671,7 +647,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end 
@@ -682,7 +658,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end 
@@ -693,7 +669,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -704,7 +680,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -716,7 +692,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -731,7 +707,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end    
@@ -742,7 +718,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end    
@@ -753,7 +729,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end 
@@ -764,7 +740,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end 
@@ -775,7 +751,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -786,7 +762,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -797,7 +773,7 @@ module gameController(
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
+                                                    AwinCNT <= AwinCNT - 1'b1;
                                                     state3 <= WAIT;
                                                 end
                                             end
@@ -813,7 +789,7 @@ module gameController(
                                 waitCnt <= 3'd0;
                                 VGA_pos <= 4'b1111;
                                 pressCnt <= 3'd0;
-                                if(lives > 2'd0) begin
+                                if(AwinCNT > 2'd0) begin
                                     if(pressCnt == 3'd6 && isCorrect) begin
                                         state3 <= WIN;
                                     end
@@ -837,7 +813,7 @@ module gameController(
                             waitCnt <= waitCnt + 1'b1;
                         end
                         WIN: begin
-                        case(waitCnt)   // 顯示一個大叉叉，由上到下左到右
+                        case(waitCnt)   // 顯示一個大圈圈
                                 3'd0: VGA_pos <= 4'd1;
                                 3'd1: VGA_pos <= 4'd3;
                                 3'd2: VGA_pos <= 4'd5;
@@ -853,19 +829,16 @@ module gameController(
                 state3 <= IDLE;
                 if( mode != preMode ) begin
                     round <= 1;
-                    AwinCNT <= 3'd6;
-                    BwinCNT <= 3'd6;
+                    AwinCNT <= 3'd3;
+                    BwinCNT <= 3'd3;
                 end
-				preMode <= mode; 
+					preMode <= mode; 
             end
         end
         
     end
 endmodule
 
-//====================================================
-// keypad
-//====================================================
 module checkKeypad(
     input [3:0] keypadCol,
     input clk, rst,  // 100Hz 
@@ -1176,14 +1149,11 @@ module vgaDisplay(
 endmodule 
 
 module dotMatrix(
-    
     input rst,
     input clk,
-    input start,
     input round,
     output reg [7:0] dot_row,
     output reg [7:0] dot_col
-    
 );
 
     reg [2:0] output_cnt;
@@ -1196,84 +1166,79 @@ module dotMatrix(
         end
         else
         begin
-            if( start ) begin
-                output_cnt <= output_cnt + 1;  
-                case( output_cnt )
-                    3'd0 : dot_row <= 8'b01111111;
-                    3'd1 : dot_row <= 8'b10111111;
-                    3'd2 : dot_row <= 8'b11011111;
-                    3'd3 : dot_row <= 8'b11101111;
-                    3'd4 : dot_row <= 8'b11110111;
-                    3'd5 : dot_row <= 8'b11111011;
-                    3'd6 : dot_row <= 8'b11111101;
-                    3'd7 : dot_row <= 8'b11111110;
-                endcase 
+            output_cnt <= output_cnt + 1;  
+            case( output_cnt )
+                3'd0 : dot_row <= 8'b01111111;
+                3'd1 : dot_row <= 8'b10111111;
+                3'd2 : dot_row <= 8'b11011111;
+                3'd3 : dot_row <= 8'b11101111;
+                3'd4 : dot_row <= 8'b11110111;
+                3'd5 : dot_row <= 8'b11111011;
+                3'd6 : dot_row <= 8'b11111101;
+                3'd7 : dot_row <= 8'b11111110;
+            endcase 
 
-                if( round == 3'd1 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00010000;
-                        3'd2 : dot_col <= 8'b00110000;
-                        3'd3 : dot_col <= 8'b01010000;
-                        3'd4 : dot_col <= 8'b00010000;
-                        3'd5 : dot_col <= 8'b00010000;
-                        3'd6 : dot_col <= 8'b01111100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd2 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00111100;
-                        3'd2 : dot_col <= 8'b00000100;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00100000;
-                        3'd5 : dot_col <= 8'b00100000;
-                        3'd6 : dot_col <= 8'b00111100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd3 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00111100;
-                        3'd2 : dot_col <= 8'b00000100;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00000100;
-                        3'd5 : dot_col <= 8'b00111100;
-                        3'd6 : dot_col <= 8'b00000000;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd4) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00100100;
-                        3'd2 : dot_col <= 8'b00100100;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00000100;
-                        3'd5 : dot_col <= 8'b00000100;
-                        3'd6 : dot_col <= 8'b00000100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd5 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00111100;
-                        3'd2 : dot_col <= 8'b00100000;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00000100;
-                        3'd5 : dot_col <= 8'b00000100;
-                        3'd6 : dot_col <= 8'b00111100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else dot_col <= 8'b0; 
+            if( round == 3'd1 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00010000;
+                    3'd2 : dot_col <= 8'b00110000;
+                    3'd3 : dot_col <= 8'b01010000;
+                    3'd4 : dot_col <= 8'b00010000;
+                    3'd5 : dot_col <= 8'b00010000;
+                    3'd6 : dot_col <= 8'b01111100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
             end
-            else dot_col <= 8'b0;
-            
-            
+            else if( round == 3'd2 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00111100;
+                    3'd2 : dot_col <= 8'b00000100;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00100000;
+                    3'd5 : dot_col <= 8'b00100000;
+                    3'd6 : dot_col <= 8'b00111100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else if( round == 3'd3 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00111100;
+                    3'd2 : dot_col <= 8'b00000100;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00000100;
+                    3'd5 : dot_col <= 8'b00111100;
+                    3'd6 : dot_col <= 8'b00000000;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else if( round == 3'd4) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00100100;
+                    3'd2 : dot_col <= 8'b00100100;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00000100;
+                    3'd5 : dot_col <= 8'b00000100;
+                    3'd6 : dot_col <= 8'b00000100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else if( round == 3'd5 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00111100;
+                    3'd2 : dot_col <= 8'b00100000;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00000100;
+                    3'd5 : dot_col <= 8'b00000100;
+                    3'd6 : dot_col <= 8'b00111100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else dot_col <= 8'b0; 
         end
 
     end
