@@ -449,6 +449,7 @@ module gameController(
                         round <= round + 1;
                         if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
                         else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
+								else round <= round - 1;
                         if(round == 3'd6) begin
                             round <= 3'd1;
                             if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
