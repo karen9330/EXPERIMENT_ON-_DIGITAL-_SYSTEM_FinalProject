@@ -405,7 +405,7 @@ module gameController(
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
-					 premode <= mode;
+					 preMode <= mode;
                 //遊戲一、二
                 if((mode == 2'd0) || (mode == 2'd1)) begin
                     //待輸入mode
