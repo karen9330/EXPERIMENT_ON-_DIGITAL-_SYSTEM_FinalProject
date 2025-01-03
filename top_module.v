@@ -311,7 +311,7 @@ module gameController(
             isCorrect <= 1'd1;
             VGA_pos <= bot_pos;
             board2 <= (board2 | (1 << bot_pos));
-            turn = turn ^ 1;
+            turn <= turn ^ 1;
         end
     endtask
 
@@ -353,32 +353,32 @@ module gameController(
         */
         for( i = 0 ; i < 3 ; i = i + 1) begin
             if(((board1 & (1 << (i * 3))) && (board1 & (1 << (i * 3 + 1))) && (board1 & (1 << (i * 3 + 2)))) == 1) begin
-                winner <= 1;
+                winner <= 2'd1;
             end
             else if(((board1 & (1 << i)) && (board1 & (1 << (i + 3))) && (board1 & (1 << (i + 6)))) == 1) begin
-                winner <= 1;
+                winner <= 2'd1;
             end
             if(((board2 & (1 << (i * 3))) && (board2 & (1 << (i * 3 + 1))) && (board2 & (1 << (i * 3 + 2)))) == 1) begin
-                winner <= 2;
+                winner <= 2'd2;
             end
             else if(((board2 & (1 << i)) && (board2 & (1 << (i + 3))) && (board2 & (1 << (i + 6)))) == 1) begin
-                winner <= 2;
+                winner <= 2'd2;
             end
         end
         if((board1 & 1) && (board1 & 16) && (board1 & 256)) begin
-            winner <= 1;
+            winner <= 2'd1;
         end
         else if((board1 & 4) && (board1 & 16) && (board1 & 64)) begin
-            winner <= 1;
+            winner <= 2'd1;
         end
         if((board2 & 1) && (board2 & 16) && (board2 & 256)) begin
-            winner <= 2;
+            winner <= 2'd2;
         end
         else if((board2 & 4) && (board2 & 16) && (board2 & 64)) begin
-            winner <= 2;
+            winner <= 2'd2;
         end
         if((board1 + board2) == ((1 << 9) - 1) && winner == 0) begin
-            winner <= 3; //平手
+            winner <= 2'd3; //平手
         end
     endtask
     always @(posedge clk or negedge rst) begin
@@ -399,13 +399,13 @@ module gameController(
 			board2 <= 1'b0;
         end
         else begin
-            if( start ) begin
-
+            if(start == 1'd1) begin
                 if( mode != preMode ) begin
                     round <= 3'd1;
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
+					 premode <= mode;
                 //遊戲一、二
                 if((mode == 2'd0) || (mode == 2'd1)) begin
                     //待輸入mode
@@ -439,7 +439,7 @@ module gameController(
                         end
                         checkwin();
                         //遊戲結束
-                        if(winner != 0) begin
+                        if(winner != 2'd0) begin
                             state <= 2'd3;
                         end
                     end
@@ -846,12 +846,12 @@ module gameController(
             end
             else begin
                 state3 <= IDLE;
-                preMode <= mode; 
                 if( mode != preMode ) begin
                     round <= 1;
                     AwinCNT <= 3'd6;
                     BwinCNT <= 3'd6;
                 end
+					 preMode <= mode; 
             end
         end
         
