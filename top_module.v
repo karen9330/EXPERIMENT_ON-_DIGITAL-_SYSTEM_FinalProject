@@ -488,15 +488,15 @@ module gameController(
                     end
                     //遊戲初始化
                     else if(state == 2'd1) begin
-                        if( round <= 3'd1 ) begin
-                            AwinCNT = 3'd0;
-                            BwinCNT = 3'd0;
-                            board1 = 9'd0;
-                            board2 = 9'd0;
-                            winner = 2'd0;
-                            turn = 1'd0;
-                        end
                         state <= 2'd2;
+                        board1 <= 9'd0;
+                        board2 <= 9'd0;
+                        winner <= 2'd0;
+                        turn <= 1'd0;
+                        if( round == 3'd1 ) begin
+                            AwinCNT <= 3'd0;
+                            BwinCNT <= 3'd0;
+                        end
                     end
                     //遊戲進行中
                     else if(state == 2'd2) begin
@@ -1247,7 +1247,7 @@ module dotMatrix(
     input rst,
     input clk,
     input start,
-    input round,
+    input [2:0] round,
     output reg [7:0] dot_row,
     output reg [7:0] dot_col
 );
