@@ -7,9 +7,8 @@
 module top_module(
     input clk, rst,
     input [3:0] keypadCol,
-    input [1:0] mode_w,
+    input [1:0] mode,
     input start_w,
-    input debug_w,
     output hsync, vsync,
     output [3:0] VGA_R, VGA_G, VGA_B,
     output [6:0] display,
@@ -86,14 +85,13 @@ module top_module(
     gameController gameControllerInst (
         .clk(divClk_2Hz),
         .rst(rst),
-        .debug(debug_w),
         .isCorrect(isCircle_w),
         .keyPressed(keyPressed), 
         .round(round_w),
         .lives(lives_w),
         .state3(state3_w),
         .VGA_pos(VGA_pos_w),
-        .chooseMode(mode_w),
+        .chooseMode(mode),
         .AwinCNT(a_cnt),
         .BwinCNT(b_cnt),
         .start(start_w)
@@ -116,7 +114,7 @@ module top_module(
         .in(lives_w),
         .out(display)
     );
-
+    
     sevenDisplay sevenDisplayInstMode12A(
         .in(a_cnt),
         .out(displayA)
@@ -143,7 +141,6 @@ module gameController(
     input [1:0]chooseMode, //模式(mode 0:單機,mode 1:雙人)
     input start,
     input [3:0] keyPressed,
-    input debug,
     output reg [2:0] lives,
     output reg isCorrect, 
     output reg [3:0] state3,
@@ -152,7 +149,7 @@ module gameController(
     output reg [2:0] AwinCNT, //玩家一比分
     output reg [2:0] BwinCNT //玩家二or電腦比分
 );
-
+	
     parameter R1 = 3'd1, R2 = 3'd2, R3 = 3'd3, R4 = 3'd4;
 
     // 狀態定義
@@ -176,24 +173,23 @@ module gameController(
     reg [1:0] winner; //該局贏家:1,2 平手:3
     integer i;
     integer j;
-    reg [3:0] bot_pos;
+    integer bot_pos;
 
 	//單機模式
     task chess1;
-        if(turn == 1'd0) begin
-				isCorrect <= 1'd0;
+        if(turn == 0) begin
             //讀入pos
             if(keyPressed != 4'd10) begin
-                if((((1 << keyPressed) & board1) == 0) && (((1 << keyPressed) & board2) == 0)) begin
-                    board1 <= ((board1) | ((1 << keyPressed)));
+                if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
+                    board1 <= (board1 | (1 << keyPressed));
+                    turn <= turn ^ 1;
+                    isCorrect <= 1'd0;
                     VGA_pos <= keyPressed;
-						  turn <= turn ^ 1;
                 end
             end
         end
-        else if(turn == 1'd1) begin
-            bot_pos <= 4'd10; //沒-1用10代替
-			isCorrect <= 1'd1;
+        else if(turn == 1) begin
+                bot_pos <= 4'd10; //沒-1用10代替
             //不下這格會輸
             for( i = 0 ; i < 3 ; i = i + 1) begin
                 for( j = 0 ; j < 3 ; j = j + 1) begin
@@ -201,19 +197,11 @@ module gameController(
                         if(((board1 & (1 << (j + 3))) && (board1 & (1 << (j + 6)))) == 1) begin
                             if(((board1 & (1 << j)) || (board2 & (1 << j))) == 0) begin
                                 bot_pos <= j;
-											VGA_pos <= bot_pos;
-											board2 <= (board2 | (1 << bot_pos));
-											turn <= turn ^ 1;
-											disable chess1;
                             end
                         end
-                        else if(((board1 & (1 << (j * 3 + 1))) && (board1 & (1 << (j * 3 + 2)))) == 1) begin
+                        if(((board1 & (1 << (j * 3 + 1))) && (board1 & (1 << (j * 3 + 2)))) == 1) begin
                             if(((board1 & (1 << (j * 3))) || (board2 & (1 << (j * 3)))) == 0) begin
                                 bot_pos <= (j * 3);
-											VGA_pos <= bot_pos;
-											board2 <= (board2 | (1 << bot_pos));
-											turn <= turn ^ 1;
-											disable chess1;
                             end
                         end
                     end
@@ -221,19 +209,11 @@ module gameController(
                         if(((board1 & (1 << (j))) && (board1 & (1 << (j + 6)))) == 1) begin
                             if(((board1 & (1 << (j + 3))) || (board2 & (1 << (j + 3)))) == 0) begin
                                 bot_pos <= j + 3;
-											VGA_pos <= bot_pos;
-											board2 <= (board2 | (1 << bot_pos));
-											turn <= turn ^ 1;
-											disable chess1;
                             end
                         end
-                        else if(((board1 & (1 << (j * 3))) && (board1 & (1 << (j * 3 + 2)))) == 1) begin
+                        if(((board1 & (1 << (j * 3))) && (board1 & (1 << (j * 3 + 2)))) == 1) begin
                             if(((board1 & (1 << (j * 3 + 1))) || (board2 & (1 << (j * 3 + 1)))) == 0) begin
                                 bot_pos <= (j * 3 + 1);
-											VGA_pos <= bot_pos;
-											board2 <= (board2 | (1 << bot_pos));
-											turn <= turn ^ 1;
-											disable chess1;
                             end
                         end
                     end
@@ -241,19 +221,11 @@ module gameController(
                         if(((board1 & (1 << (j))) && (board1 & (1 << (j + 3)))) == 1) begin
                             if(((board1 & (1 << (j + 6))) || (board2 & (1 << (j + 6)))) == 0) begin
                                 bot_pos <= j + 6;
-											VGA_pos <= bot_pos;
-											board2 <= (board2 | (1 << bot_pos));
-											turn <= turn ^ 1;
-											disable chess1;
                             end
                         end
-                        else if(((board1 & (1 << (j * 3))) && (board1 & (1 << (j * 3 + 1)))) == 1) begin
+                        if(((board1 & (1 << (j * 3))) && (board1 & (1 << (j * 3 + 1)))) == 1) begin
                             if(((board1 & (1 << (j * 3 + 2))) || (board2 & (1 << (j * 3 + 2)))) == 0) begin
                                 bot_pos <= (j * 3 + 2);
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
                     end
@@ -264,7 +236,7 @@ module gameController(
                 if(((board1 & (1 << 0)) && (board1 & (1 << 8)))) begin
                     bot_pos <= 4'd4;
                 end
-                else if(((board1 & (1 << 2)) && (board1 & (1 << 6)))) begin
+                if(((board1 & (1 << 2)) && (board1 & (1 << 6)))) begin
                     bot_pos <= 4'd4;
                 end
             end
@@ -275,19 +247,11 @@ module gameController(
                         if(((board2 & (1 << (j + 3))) && (board2 & (1 << (j + 6)))) == 1) begin
                             if(((board1 & (1 << j)) || (board2 & (1 << j))) == 0) begin
                                 bot_pos <= j;
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
-                        else if(((board2 & (1 << (j * 3 + 1))) && (board2 & (1 << (j * 3 + 2)))) == 1) begin
+                        if(((board2 & (1 << (j * 3 + 1))) && (board2 & (1 << (j * 3 + 2)))) == 1) begin
                             if(((board1 & (1 << (j * 3))) || (board2 & (1 << (j * 3)))) == 0) begin
                                 bot_pos <= (j * 3);
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
                     end
@@ -295,19 +259,11 @@ module gameController(
                         if(((board2 & (1 << (j))) && (board2 & (1 << (j + 6)))) == 1) begin
                             if(((board1 & (1 << (j + 3))) || (board2 & (1 << (j + 3)))) == 0) begin
                                 bot_pos <= j + 3;
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
-                        else if(((board2 & (1 << (j * 3))) && (board2 & (1 << (j * 3 + 2)))) == 1) begin
+                        if(((board2 & (1 << (j * 3))) && (board2 & (1 << (j * 3 + 2)))) == 1) begin
                             if(((board1 & (1 << (j * 3 + 1))) || (board2 & (1 << (j * 3 + 1)))) == 0) begin
                                 bot_pos <= (j * 3 + 1);
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
                     end
@@ -315,19 +271,11 @@ module gameController(
                         if(((board2 & (1 << (j))) && (board2 & (1 << (j + 3)))) == 1) begin
                             if(((board1 & (1 << (j + 6))) || (board2 & (1 << (j + 6)))) == 0) begin
                                 bot_pos <= j + 6;
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
-                        else if(((board2 & (1 << (j * 3))) && (board2 & (1 << (j * 3 + 1)))) == 1) begin
+                        if(((board2 & (1 << (j * 3))) && (board2 & (1 << (j * 3 + 1)))) == 1) begin
                             if(((board1 & (1 << (j * 3 + 2))) || (board2 & (1 << (j * 3 + 2)))) == 0) begin
                                 bot_pos <= (j * 3 + 2);
-                                VGA_pos <= bot_pos;
-                                board2 <= (board2 | (1 << bot_pos));
-                                turn <= turn ^ 1;
-                                disable chess1;
                             end
                         end
                     end
@@ -337,17 +285,9 @@ module gameController(
             if(((board1 & (1 << 4)) || (board2 & (1 << 4))) == 0) begin
                 if(((board2 & (1 << 0)) && (board2 & (1 << 8)))) begin
                     bot_pos <= 4'd4;
-                    VGA_pos <= bot_pos;
-                    board2 <= (board2 | (1 << bot_pos));
-                    turn <= turn ^ 1;
-                    disable chess1;
                 end
-                else if(((board2 & (1 << 2)) && (board2 & (1 << 6)))) begin
+                if(((board2 & (1 << 2)) && (board2 & (1 << 6)))) begin
                     bot_pos <= 4'd4;
-                    VGA_pos <= bot_pos;
-                    board2 <= (board2 | (1 << bot_pos));
-                    turn <= turn ^ 1;
-                    disable chess1;
                 end
             end
             //隨便選一格下
@@ -355,14 +295,13 @@ module gameController(
                 for( i = 0 ; i < 9 ; i = i + 1) begin
                     if(((board1 & (1 << i)) || (board2 & (1 << i))) == 0) begin
                         bot_pos <= i;
-                        isCorrect <= 1'd1;
-                        VGA_pos <= bot_pos;
-                        board2 <= (board2 | (1 << bot_pos));
-                        turn <= turn ^ 1;
-                        disable chess1;
                     end
                 end
             end
+            isCorrect <= 1'd1;
+            VGA_pos <= bot_pos;
+            board2 <= (board2 | (1 << bot_pos));
+            turn <= turn ^ 1;
         end
     endtask
 
@@ -396,53 +335,41 @@ module gameController(
 
     //檢查有沒有人贏
     task checkwin;
-		begin
-        if(debug == 1) winner <= 2'd1;
-		  /*
+        /*
         board開1 << 9然後AND 1 << x去判斷第x位置
         1 2 4
         8 16 32
         64 128 256
-		  */
+        */
         for( i = 0 ; i < 3 ; i = i + 1) begin
             if(((board1 & (1 << (i * 3))) && (board1 & (1 << (i * 3 + 1))) && (board1 & (1 << (i * 3 + 2)))) == 1) begin
                 winner <= 2'd1;
-					 disable checkwin;
             end
             else if(((board1 & (1 << i)) && (board1 & (1 << (i + 3))) && (board1 & (1 << (i + 6)))) == 1) begin
                 winner <= 2'd1;
-					 disable checkwin;
             end
-            else if(((board2 & (1 << (i * 3))) && (board2 & (1 << (i * 3 + 1))) && (board2 & (1 << (i * 3 + 2)))) == 1) begin
+            if(((board2 & (1 << (i * 3))) && (board2 & (1 << (i * 3 + 1))) && (board2 & (1 << (i * 3 + 2)))) == 1) begin
                 winner <= 2'd2;
-					 disable checkwin;
             end
             else if(((board2 & (1 << i)) && (board2 & (1 << (i + 3))) && (board2 & (1 << (i + 6)))) == 1) begin
                 winner <= 2'd2;
-					 disable checkwin;
             end
         end
         if((board1 & 1) && (board1 & 16) && (board1 & 256)) begin
             winner <= 2'd1;
-				disable checkwin;
         end
         else if((board1 & 4) && (board1 & 16) && (board1 & 64)) begin
             winner <= 2'd1;
-				disable checkwin;
         end
-        else if((board2 & 1) && (board2 & 16) && (board2 & 256)) begin
+        if((board2 & 1) && (board2 & 16) && (board2 & 256)) begin
             winner <= 2'd2;
-				disable checkwin;
         end
         else if((board2 & 4) && (board2 & 16) && (board2 & 64)) begin
             winner <= 2'd2;
-				disable checkwin;
         end
-        else if((board1 + board2) == ((1 << 9) - 1) && winner == 0) begin
+        if((board1 + board2) == ((1 << 9) - 1) && winner == 0) begin
             winner <= 2'd3; //平手
-				disable checkwin;
         end
-		 end
     endtask
     always @(posedge clk or negedge rst) begin
         if(!rst) begin
@@ -453,7 +380,7 @@ module gameController(
             waitCnt <= 2'd0;
             pressCnt <= 3'd0;
             prevKeyPressed <= 4'b1111;
-            state <= 2'd0;
+            state <= 2'b00;
 			mode <= 1'b0;
             preMode <= mode;
 			turn <= 1'b0;
@@ -463,7 +390,7 @@ module gameController(
         end
         else begin
             if(start == 1'd1) begin
-                if( chooseMode != preMode ) begin
+                if( mode != preMode ) begin
                     round <= 3'd1;
                     lives <= 3'd6;
                     AwinCNT <= 3'd6;  
@@ -487,20 +414,18 @@ module gameController(
                         board2 <= 9'd0;
                         winner <= 2'd0;
                         turn <= 1'd0;
-                        if( round == 3'd1 ) begin
-                            AwinCNT <= 3'd0;
-                            BwinCNT <= 3'd0;
-                        end
+                        AwinCNT <= 3'd0;
+                        BwinCNT <= 3'd0;
                     end
                     //遊戲進行中
                     else if(state == 2'd2) begin
                         state3 <= PLAYING;
                         //單機模式
-                        if(mode == 2'd0) begin
+                        if(mode == 1'd0) begin
                             chess1();
                         end
                         //雙人模式
-                        else if(mode == 2'd1) begin
+                        else if(mode == 1'd1) begin
                             chess2();
                         end
                         checkwin();
@@ -732,7 +657,7 @@ module gameController(
                                                 if(keyPressed == 4'd5) begin
                                                     isCorrect <= 1'd1;
                                                     pressCnt <= pressCnt + 1'b1;
-
+                                                                
                                                 end
                                                 else begin
                                                     isCorrect <= 1'd0;
@@ -870,7 +795,7 @@ module gameController(
                                     end
                                 endcase
                                 VGA_pos <= keyPressed;
-
+                                        
                             end
                         end
                         WAIT: begin
@@ -926,7 +851,7 @@ module gameController(
 					preMode <= mode; 
             end
         end
-
+        
     end
 endmodule
 
@@ -936,7 +861,7 @@ module checkKeypad(
     output reg [3:0] keypadRow,
     output reg [3:0] VGA_pos
 ); 
-
+ 
     always @(posedge clk or negedge rst) begin
         if(!rst) begin
             keypadRow <= 4'b1110;    
@@ -975,7 +900,7 @@ module checkKeypad(
                     VGA_pos <= VGA_pos;
                 end
             endcase
-
+                
             case(keypadRow)
                 4'b1011: keypadRow <= 4'b1101;
                 4'b1101: keypadRow <= 4'b1110;
@@ -1077,7 +1002,7 @@ module vgaDisplay(
     parameter CELL_SIZE = 160;  
     parameter GRID_COLS = 3;   // 3 欄
     parameter GRID_ROWS = 3;   // 3 行
-
+	 
 	parameter IDLE = 4'd0, SHOW_TASK = 4'd1, PLAYING = 4'd2,
               GAME_OVER = 4'd3, WIN = 4'd4, WAIT = 4'd5,TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
 
@@ -1334,4 +1259,5 @@ module dotMatrix(
         end
 
     end
-endmodule
+
+endmodule 
