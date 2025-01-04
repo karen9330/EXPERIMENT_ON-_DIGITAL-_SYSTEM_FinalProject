@@ -7,11 +7,10 @@
 module top_module(
     input clk, rst,
     input [3:0] keypadCol,
-    input [2:0] mode,
+    input [1:0] mode,
     input start_w,
     output hsync, vsync,
     output [3:0] VGA_R, VGA_G, VGA_B,
-    output [6:0] display,
     output [6:0] displayA, // mode 12
     output [6:0] displayB, // mode 12 
     output [3:0] keypadRow,
@@ -138,7 +137,7 @@ endmodule
 
 module gameController(
     input clk, rst,
-    input [2:0]chooseMode, //模式(mode 0:單機,mode 1:雙人)
+    input [1:0]chooseMode, //模式(mode 0:單機,mode 1:雙人)
     input start,
     input [3:0] keyPressed,
     output reg [2:0] lives,
@@ -165,6 +164,7 @@ module gameController(
     reg isFirstTime;
 
     reg turn; //目前誰要下
+    reg [1:0] mode;
     reg [1:0] preMode;
     //reg [3:0] pos; //下在哪個位置 0~8,未輸入用4'd10代替
     reg [8:0] board1; //玩家一下的位置
@@ -373,13 +373,15 @@ module gameController(
     always @(posedge clk or negedge rst) begin
         if(!rst) begin
 			VGA_pos <= 4'b1111;
+            state3 <= IDLE;
             isCorrect <= 1'd0;
 			round <= 3'd1;
             waitCnt <= 2'd0;
             pressCnt <= 3'd0;
             prevKeyPressed <= 4'b1111;
             state <= 2'b00;
-            preMode <= 3'd5;
+			mode <= 1'b0;
+            preMode <= mode;
 			turn <= 1'b0;
 			board1 <= 1'b0;
 			board2 <= 1'b0;
@@ -387,19 +389,20 @@ module gameController(
         end
         else begin
             if(start == 1'd1) begin
-                if( chooseMode != preMode ) begin
+                if( mode != preMode ) begin
                     round <= 3'd1;
                     lives <= 3'd6;
                     AwinCNT <= 3'd6;  
                     BwinCNT <= 3'd6;
-                    preMode <= chooseMode;
                 end
+					preMode <= mode;
                 //遊戲一、二
-                if((chooseMode == 2'd0) || (chooseMode == 2'd1)) begin
+                if((mode == 2'd0) || (mode == 2'd1)) begin
                     //待輸入mode
                     if(state == 2'd0) begin
                         if( start == 1 ) begin
-                            state3 <= PLAYING;
+                            state3 <= IDLE;
+                            mode <= chooseMode;
                             state <= 2'd1;
                         end
                     end
@@ -417,11 +420,11 @@ module gameController(
                     else if(state == 2'd2) begin
                         state3 <= PLAYING;
                         //單機模式
-                        if(chooseMode == 1'd0) begin
+                        if(mode == 1'd0) begin
                             chess1();
                         end
                         //雙人模式
-                        else if(chooseMode == 1'd1) begin
+                        else if(mode == 1'd1) begin
                             chess2();
                         end
                         checkwin();
@@ -437,7 +440,7 @@ module gameController(
                         if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
                         else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
 						else round <= round - 1;
-                        if(round == 3'd5 && winner != 2'd3) begin
+                        if(round == 3'd5 && winner != 2'd3) begin // 因為 round 的增加會在下一個 clk 來時，所以在這裡要判斷 3'd5
                             round <= 3'd1;
                             if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
                             else state3 <= TIC_TAC_TOE_player2win;
