@@ -11,6 +11,7 @@ module top_module(
     input start_w,
     output hsync, vsync,
     output [3:0] VGA_R, VGA_G, VGA_B,
+	 output [6:0] display,
     output [6:0] displayA, // mode 12
     output [6:0] displayB, // mode 12 
     output [3:0] keypadRow,
@@ -111,11 +112,13 @@ module top_module(
 
     sevenDisplay sevenDisplayInst(
         .in(lives_w),
+		  //.in(a_cnt),
         .out(display)
     );
     
     sevenDisplay sevenDisplayInstMode12A(
         .in(a_cnt),
+		  //.in(lives_w),
         .out(displayA)
     );
 
@@ -178,12 +181,13 @@ module gameController(
     task chess1;
         if(turn == 0) begin
             //讀入pos
-            if(keyPressed != 4'd10) begin
+            if(keyPressed != prevKeyPressed) begin
                 if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
                     board1 <= (board1 | (1 << keyPressed));
                     turn <= turn ^ 1;
                     isCorrect <= 1'd0;
                     VGA_pos <= keyPressed;
+                    prevKeyPressed <= keyPressed;
                 end
             end
         end
@@ -307,14 +311,15 @@ module gameController(
     //雙人模式
     task chess2;
         //玩家1
-        if(turn == 0) begin
+        if(turn==0) begin
                 //讀入pos
-                if(keyPressed != 4'd10) begin
+                if(keyPressed != prevKeyPressed) begin
                     if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
                         board1 <= (board1 | (1 << keyPressed));
                         turn <= turn ^ 1;
                         isCorrect <= 1'd0;
                         VGA_pos <= keyPressed;
+								prevKeyPressed <= keyPressed;
                     end
                 end
         end
@@ -327,6 +332,7 @@ module gameController(
                         turn <= turn ^ 1;
                         isCorrect <= 1'd1;
                         VGA_pos <= keyPressed;
+								prevKeyPressed <= keyPressed;
                     end
                 end
         end
@@ -386,6 +392,9 @@ module gameController(
 			board1 <= 1'b0;
 			board2 <= 1'b0;
             isFirstTime <= 1'd1;
+				lives <= 3'd6;
+            AwinCNT <= 3'd6;  
+            BwinCNT <= 3'd6;
         end
         else begin
             if(start == 1'd1) begin
@@ -401,7 +410,9 @@ module gameController(
                     //待輸入mode
                     if(state == 2'd0) begin
                         if( start == 1 ) begin
-                            state3 <= PLAYING;
+								AwinCNT<=AwinCNT;
+								BwinCNT<=BwinCNT;
+                            state3 <= IDLE;
                             VGA_pos <= 4'b1111;
                             mode <= chooseMode;
                             state <= 2'd1;
@@ -418,6 +429,7 @@ module gameController(
                         board2 <= 9'd0;
                         winner <= 2'd0;
                         turn <= 1'd0;
+								VGA_pos <= 4'b1111;
                     end
                     //遊戲進行中
                     else if(state == 2'd2) begin
@@ -438,14 +450,15 @@ module gameController(
                     end
                     //結束遊戲
                     else if(state == 2'd3) begin
+								VGA_pos <= 4'b1111;
                         state <= 2'd0;
                         round <= round + 1;
-                        if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
-                        else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
+                        if( winner == 2'd1 ) AwinCNT <= AwinCNT + 3'd1;
+                        else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 3'd1;
 						else round <= round - 1;
                         if(round == 3'd5 && winner != 2'd3) begin 
                             round <= 3'd1;
-                            if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
+                            if(winner == 2'd1) state3 <= TIC_TAC_TOE_player1win;
                             else state3 <= TIC_TAC_TOE_player2win;
                         end
                     end
