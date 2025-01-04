@@ -4,11 +4,10 @@
 `define TimeExpire_2Hz 32'd12500000
 `define TimeExpire_1Hz 32'd25000000
 
-module top_module(
+module ModeThree(
     input clk, rst,
     input [3:0] keypadCol,
     input [1:0] mode,
-    input start_w,
     output hsync, vsync,
     output [3:0] VGA_R, VGA_G, VGA_B,
     output [6:0] display,
@@ -65,15 +64,6 @@ module top_module(
         .divClk(divClk_10000Hz)
     );
 
-    //記憶遊戲
-    wire isCircle_w;
-    wire [2:0] round_w, lives_w;
-    wire [3:0] keyPressed; 
-    wire [2:0] state3_w;
-    wire [3:0] VGA_pos_w;
-    wire [2:0] showCnt_w;
-    wire [2:0] a_cnt, b_cnt;
-
     checkKeypad keypadInst (
         .clk(divClk_100Hz),
         .rst(rst),
@@ -82,25 +72,29 @@ module top_module(
         .VGA_pos(keyPressed)
     );
 
+    wire isoCorrect_w;
+    wire round_w;
+    wire state_w;
+    wire VGA_pos_w;
+    wire a_cnt, b_cnt;
+
     gameController gameControllerInst (
-        .clk(divClk_2Hz),
+        .divClk_2Hz(divClk_2Hz),
         .rst(rst),
+        .chooseMode(mode),
         .isCorrect(isCircle_w),
         .keyPressed(keyPressed), 
         .round(round_w),
-        .lives(lives_w),
-        .state3(state3_w),
+        .state(state_w),
         .VGA_pos(VGA_pos_w),
-        .chooseMode(mode),
         .AwinCNT(a_cnt),
         .BwinCNT(b_cnt),
-        .start(start_w)
     );
 
     vgaDisplay vgaDisplayInst( 
         .clk(divClk_25MHz),
         .rst(rst),
-        .state3(state3_w),
+        .state(state_w),
         .VGA_pos(VGA_pos_w),
         .isCircle(isCircle_w), 
         .hsync(hsync),
@@ -111,7 +105,7 @@ module top_module(
     );
 
     sevenDisplay sevenDisplayInst(
-        .in(lives_w),
+        .in(a_cnt),
         .out(display)
     );
     
@@ -127,7 +121,6 @@ module top_module(
 
     dotMatrix dotMatrixInst(
         .clk(divClk_10000Hz),
-        .start(start_w),
         .rst(rst),
         .round(round_w),
         .dot_row(dot_row),
@@ -137,37 +130,115 @@ module top_module(
 endmodule
 
 module gameController(
-    input clk, rst,
-    input [1:0]chooseMode, //模式(mode 0:單機,mode 1:雙人)
-    input start,
-    input [3:0] keyPressed,
-    output reg [2:0] lives,
+    input divClk_2Hz, rst,
+    input [1:0] chooseMode, 
+    input [3:0] keyPressed, 
     output reg isCorrect, 
-    output reg [3:0] state3,
+    output reg [3:0] state,
+	output reg [2:0] round,
+    output reg [3:0] VGA_pos,
+    output reg [2:0] AwinCNT, //玩家一比分
+    output reg [2:0] BwinCNT //玩家二or電腦比分
+);  
+
+    wire isCircle_one, isCircle_two, isCircle_three;
+    wire [3:0] state_one, state_two, state_three;
+    wire [2:0] round_one, round_two, round_three;
+    wire [2:0] AwinCnt_one, AwinCnt_two, AwinCnt_three;
+    wire [3:0] position_one, position_two, position_three;
+
+    modeOne modeOneInit (
+        .clk(divClk_2Hz),
+        .rst(rst),
+        .start(chooseMode),
+        .keyPressed(keyPressed),
+        .isCorrect(isCircle_one),
+        .state(state_one),
+        .round(round_one),
+        .AwinCNT(AwinCnt_one),
+        .BwinCNT(BwinCnt_one),
+        .VGA_pos(position_one)
+    );
+
+    modeTwo modeTwoInit (
+        .clk(divClk_2Hz),
+        .rst(rst),
+        .start(chooseMode),
+        .keyPressed(keyPressed),
+        .isCorrect(isCircle_two),
+        .state(state_two),
+        .round(round_two),
+        .AwinCNT(AwinCnt_two),
+        .BwinCNT(BwinCnt_two),
+        .VGA_pos(position_two)
+    );
+    
+    modeThree modeThreeInit (
+        .clk(divClk_2Hz),
+        .rst(rst),
+        .start(chooseMode),
+        .isCorrect(isCircle_three),
+        .state(state_three),
+        .keyPressed(keyPressed), 
+        .round(round_three),
+        .lives(AwinCnt_three),
+        .VGA_pos(position_three)
+    );
+
+    always@(posedge divClk_2Hz) begin
+        case(chooseMode)
+            2'd0: begin
+                isCorrect <= isCircle_one;
+                state <= state_one;
+                round <= round_one;
+                VGA_pos <= position_one;
+                AwinCNT <= AwinCnt_one;
+                BwinCNT <= BwinCnt_one;
+            end
+            2'd1: begin
+                isCorrect <= isCircle_two;
+                state <= state_two;
+                round <= round_two;
+                VGA_pos <= position_two;
+                AwinCNT <= AwinCnt_two;
+                BwinCNT <= BwinCnt_two;
+            end
+            2'd2: begin
+                isCorrect <= isCircle_three;
+                state <= state_three;
+                round <= round_three;
+                VGA_pos <= position_three;
+                AwinCNT <= AwinCnt_three;
+                BwinCNT <= 3'd6; // 不顯示
+            end
+            default: begin
+                isCorrect <= 1'd0;
+                state <= 4'd2;
+                round <= 3'd1;
+                VGA_pos <= 4'b1111;
+                AwinCNT <= 3'd6;
+                BwinCNT <= 3'd6;
+            end
+        endcase
+    end
+
+endmodule
+
+
+module modeOne(
+    input clk, rst,
+    input [1:0] start,
+    input [3:0] keyPressed,
+    output reg isCorrect, 
+    output reg [3:0] state,
 	output reg [2:0] round,
     output reg [3:0] VGA_pos,
     output reg [2:0] AwinCNT, //玩家一比分
     output reg [2:0] BwinCNT //玩家二or電腦比分
 );
-	
-    parameter R1 = 3'd1, R2 = 3'd2, R3 = 3'd3, R4 = 3'd4;
-
-    // 狀態定義
-    parameter IDLE=4'd0, SHOW_TASK=4'd1, PLAYING=4'd2,
-              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,
-              TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
-
-    reg [3:0] prevKeyPressed;
-    reg [2:0] pressCnt;
-	reg [2:0] showCnt;
-    reg [2:0] waitCnt;
-    reg [1:0] state;
-    reg isFirstTime;
-
-    reg turn; //目前誰要下
-    reg [1:0] mode;
-    reg [1:0] preMode;
-    //reg [3:0] pos; //下在哪個位置 0~8,未輸入用4'd10代替
+    reg [1:0] cnt;  // 紀錄遊戲現在的狀態
+    reg [1:0] turn; //目前誰要下
+    reg [3:0] pos; //下在哪個位置 0~8,未輸入用4'd10代替
     reg [8:0] board1; //玩家一下的位置
     reg [8:0] board2; //玩家二or電腦下的位置
     reg [1:0] winner; //該局贏家:1,2 平手:3
@@ -175,7 +246,8 @@ module gameController(
     integer j;
     integer bot_pos;
 
-	//單機模式
+    parameter PLAYING=4'd2, TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
+
     task chess1;
         if(turn == 0) begin
             //讀入pos
@@ -305,35 +377,6 @@ module gameController(
         end
     endtask
 
-    //雙人模式
-    task chess2;
-        //玩家1
-        if(turn == 0) begin
-                //讀入pos
-                if(keyPressed != 4'd10) begin
-                    if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
-                        board1 <= (board1 | (1 << keyPressed));
-                        turn <= turn ^ 1;
-                        isCorrect <= 1'd0;
-                        VGA_pos <= keyPressed;
-                    end
-                end
-        end
-        //玩家2
-        else if(turn == 1) begin
-                //讀入pos
-                if(keyPressed != 4'd10) begin
-                    if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
-                        board2 <= (board2 | (1 << keyPressed));
-                        turn <= turn ^ 1;
-                        isCorrect <= 1'd1;
-                        VGA_pos <= keyPressed;
-                    end
-                end
-        end
-    endtask
-
-    //檢查有沒有人贏
     task checkwin;
         /*
         board開1 << 9然後AND 1 << x去判斷第x位置
@@ -371,487 +414,645 @@ module gameController(
             winner <= 2'd3; //平手
         end
     endtask
-    always @(posedge clk or negedge rst) begin
+
+    always@(posedge clk or negedge rst) begin
         if(!rst) begin
 			VGA_pos <= 4'b1111;
-            state3 <= IDLE;
+            state <= PLAYING;
+            isCorrect <= 1'd0;
+			round <= 3'd1;
+            AwinCNT = 3'd6;  
+            BwinCNT = 3'd6;
+			turn <= 1'b0;
+			board1 <= 9'd0;
+			board2 <= 9'd0;
+            cnt <= 2'd0;
+        end
+        else if(start == 2'd0) begin    // start == 2'd0 模式一
+            if(cnt == 2'd0) begin
+                state <= PLAYING;
+                board1 <= 9'd0;
+                board2 <= 9'd0;
+                winner <= 2'd0;
+                turn <= 1'd0;
+                if( round == 3'd1 ) begin
+                    AwinCNT <= 3'd0;
+                    BwinCNT <= 3'd0;
+                end
+            end
+            else if(cnt == 2'd1) begin
+                state <= PLAYING;
+                chess1();
+                checkwin();
+                //遊戲結束
+                if(winner != 2'd0) begin
+                    cnt <= 2'd2;
+                end
+            end
+            //結束遊戲
+            else if(cnt == 2'd3) begin
+                cnt <= 2'd0;
+                round <= round + 1;
+                if( winner == 2'd1 ) AwinCNT = AwinCNT + 1;
+                else if( winner == 2'd2 ) BwinCNT = BwinCNT + 1;
+                else round <= round - 1;
+                if(round == 3'd5 && winner != 2'd3) begin 
+                    round <= 3'd1;
+                    if(AwinCNT > BwinCNT) state <= TIC_TAC_TOE_player1win;
+                    else state <= TIC_TAC_TOE_player2win;
+                end
+            end
+        end
+
+    end
+endmodule
+
+module modeTwo(
+    input clk, rst,
+    input [1:0] start,
+    input [3:0] keyPressed,
+    output reg isCorrect, 
+    output reg [3:0] state,
+	output reg [2:0] round,
+    output reg [3:0] VGA_pos,
+    output reg [2:0] AwinCNT, //玩家一比分
+    output reg [2:0] BwinCNT //玩家二or電腦比分
+);
+    reg [1:0] cnt;  // 紀錄遊戲現在的狀態
+    reg [1:0] turn; //目前誰要下
+    reg [3:0] pos; //下在哪個位置 0~8,未輸入用4'd10代替
+    reg [8:0] board1; //玩家一下的位置
+    reg [8:0] board2; //玩家二or電腦下的位置
+    reg [1:0] winner; //該局贏家:1,2 平手:3
+    integer i;
+
+    parameter PLAYING=4'd2, TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
+
+    //雙人模式
+    task chess2;
+        //玩家1
+        if(turn == 0) begin
+                //讀入pos
+                if(keyPressed != 4'd10) begin
+                    if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
+                        board1 <= (board1 | (1 << keyPressed));
+                        turn <= turn ^ 1;
+                        isCorrect <= 1'd0;
+                        VGA_pos <= keyPressed;
+                    end
+                end
+        end
+        //玩家2
+        else if(turn == 1) begin
+                //讀入pos
+                if(keyPressed != 4'd10) begin
+                    if(((1 << keyPressed) & board1) == 0 && ((1 << keyPressed) & board2) == 0) begin
+                        board2 <= (board2 | (1 << keyPressed));
+                        turn <= turn ^ 1;
+                        isCorrect <= 1'd1;
+                        VGA_pos <= keyPressed;
+                    end
+                end
+        end
+    endtask
+
+    task checkwin;
+        /*
+        board開1 << 9然後AND 1 << x去判斷第x位置
+        1 2 4
+        8 16 32
+        64 128 256
+        */
+        for( i = 0 ; i < 3 ; i = i + 1) begin
+            if(((board1 & (1 << (i * 3))) && (board1 & (1 << (i * 3 + 1))) && (board1 & (1 << (i * 3 + 2)))) == 1) begin
+                winner <= 2'd1;
+            end
+            else if(((board1 & (1 << i)) && (board1 & (1 << (i + 3))) && (board1 & (1 << (i + 6)))) == 1) begin
+                winner <= 2'd1;
+            end
+            if(((board2 & (1 << (i * 3))) && (board2 & (1 << (i * 3 + 1))) && (board2 & (1 << (i * 3 + 2)))) == 1) begin
+                winner <= 2'd2;
+            end
+            else if(((board2 & (1 << i)) && (board2 & (1 << (i + 3))) && (board2 & (1 << (i + 6)))) == 1) begin
+                winner <= 2'd2;
+            end
+        end
+        if((board1 & 1) && (board1 & 16) && (board1 & 256)) begin
+            winner <= 2'd1;
+        end
+        else if((board1 & 4) && (board1 & 16) && (board1 & 64)) begin
+            winner <= 2'd1;
+        end
+        if((board2 & 1) && (board2 & 16) && (board2 & 256)) begin
+            winner <= 2'd2;
+        end
+        else if((board2 & 4) && (board2 & 16) && (board2 & 64)) begin
+            winner <= 2'd2;
+        end
+        if((board1 + board2) == ((1 << 9) - 1) && winner == 0) begin
+            winner <= 2'd3; //平手
+        end
+    endtask
+
+    always@(posedge clk or negedge rst) begin
+        if(!rst) begin
+			VGA_pos <= 4'b1111;
+            state <= PLAYING;
+            isCorrect <= 1'd0;
+			round <= 3'd1;
+            AwinCNT = 3'd6;  
+            BwinCNT = 3'd6;
+			turn = 1'b0;
+			board1 = 9'd0;
+            board2 = 9'd0;
+            cnt <= 2'd0;
+        end
+        else if(start == 2'd1) begin    // start == 2'd0 模式一
+            if(cnt == 2'd0) begin
+                state <= PLAYING;
+                board1 <= 9'd0;
+                board2 <= 9'd0;
+                winner <= 2'd0;
+                turn <= 1'd0;
+                if( round == 3'd1 ) begin
+                    AwinCNT <= 3'd0;
+                    BwinCNT <= 3'd0;
+                end
+            end
+            else if(cnt == 2'd1) begin
+                state <= PLAYING;
+                chess2();
+                checkwin();
+                //遊戲結束
+                if(winner != 2'd0) begin
+                    cnt <= 2'd2;
+                end
+            end
+            //結束遊戲
+            else if(cnt == 2'd3) begin
+                cnt <= 2'd0;
+                round <= round + 1;
+                if( winner == 2'd1 ) AwinCNT = AwinCNT + 1;
+                else if( winner == 2'd2 ) BwinCNT = BwinCNT + 1;
+                else round <= round - 1;
+                if(round == 3'd5 && winner != 2'd3) begin 
+                    round <= 3'd1;
+                    if(AwinCNT > BwinCNT) state <= TIC_TAC_TOE_player1win;
+                    else state <= TIC_TAC_TOE_player2win;
+                end
+            end
+        end
+
+    end
+
+endmodule
+
+module modeThree(
+    input clk, rst,
+    input [1:0] start, //模式(mode 0:單機,mode 1:雙人)
+    input [3:0] keyPressed,
+    output reg isCorrect, 
+    output reg [3:0] state,
+	output reg [2:0] round,
+    output reg [3:0] VGA_pos,
+    output reg [2:0] lives
+);
+
+    parameter R1 = 3'd1, R2 = 3'd2, R3 = 3'd3, R4 = 3'd4;
+
+    // 狀態定義
+    parameter IDLE=4'd0, SHOW_TASK=4'd1, PLAYING=4'd2,
+              GAME_OVER=4'd3, WIN=4'd4, WAIT = 4'd5,
+              TIC_TAC_TOE_player1win = 4'd6,TIC_TAC_TOE_player2win = 4'd7;
+
+    reg [3:0] prevKeyPressed;
+    reg [2:0] pressCnt;
+	reg [2:0] showCnt;
+    reg [2:0] waitCnt;
+
+    always@(posedge clk or negedge rst) begin
+        if(!rst) begin
+            VGA_pos <= 4'b1111;
+            state <= IDLE;
             isCorrect <= 1'd0;
 			round <= 3'd1;
             waitCnt <= 2'd0;
+            showCnt <= 3'd0;
             pressCnt <= 3'd0;
             prevKeyPressed <= 4'b1111;
-            state <= 2'b00;
-			mode <= 1'b0;
-            preMode <= mode;
-			turn <= 1'b0;
-			board1 <= 1'b0;
-			board2 <= 1'b0;
-            isFirstTime <= 1'd1;
+            lives <= 3'd3;
         end
-        else begin
-            if(start == 1'd1) begin
-                if( mode != preMode ) begin
-                    round <= 3'd1;
-                    lives <= 3'd6;
-                    AwinCNT <= 3'd6;  
-                    BwinCNT <= 3'd6;
+        else if(start == 2'd2) begin
+            case(state)
+                IDLE: begin
+                    if(waitCnt == 2'd1) begin
+                        waitCnt <= 2'd0;
+                        case(showCnt)
+                            3'd0: VGA_pos <= 4'd0;
+                            3'd1: VGA_pos <= 4'd4;
+                            3'd2: VGA_pos <= 4'd8;
+                        endcase
+                        if(showCnt == 3'd3) begin
+                            showCnt <= 3'd0;
+                            VGA_pos <= 4'b1111;
+                            state <= SHOW_TASK;
+                        end
+                        else showCnt <= showCnt + 1'd1;
+                    end
+                    else waitCnt <= waitCnt + 1'd1;
                 end
-					preMode <= mode;
-                //遊戲一、二
-                if((mode == 2'd0) || (mode == 2'd1)) begin
-                    //待輸入mode
-                    if(state == 2'd0) begin
-                        if( start == 1 ) begin
-                            state3 <= IDLE;
-                            mode <= chooseMode;
-                            state <= 2'd1;
+                SHOW_TASK: begin
+                case(round)
+                    R1: begin
+                        case (showCnt)
+                            3'd0: VGA_pos <= 3'd5;
+                            3'd1: VGA_pos <= 3'd4;
+                            3'd2: VGA_pos <= 3'd3;
+                        endcase
+                        if(showCnt == 3'd3) begin
+                            showCnt <= 3'd0;
+                            VGA_pos <= 4'b1111;
+                            state <= PLAYING;
                         end
+                        else showCnt <= showCnt + 1;
                     end
-                    //遊戲初始化
-                    else if(state == 2'd1) begin
-                        state <= 2'd2;
-                        board1 <= 9'd0;
-                        board2 <= 9'd0;
-                        winner <= 2'd0;
-                        turn <= 1'd0;
-                        AwinCNT <= 3'd0;
-                        BwinCNT <= 3'd0;
+                    R2: begin
+                        case (showCnt)
+                            3'd0: VGA_pos <= 3'd5;
+                            3'd1: VGA_pos <= 3'd0;
+                            3'd2: VGA_pos <= 3'd4;
+                            3'd3: VGA_pos <= 3'd2;
+                            3'd4: VGA_pos <= 3'd7;
+                        endcase
+                        if(showCnt == 3'd5) begin
+                            showCnt <= 3'd0;
+                            VGA_pos <= 4'b1111;
+                            state <= PLAYING;
+                        end
+                        else showCnt <= showCnt + 1;
                     end
-                    //遊戲進行中
-                    else if(state == 2'd2) begin
-                        state3 <= PLAYING;
-                        //單機模式
-                        if(mode == 1'd0) begin
-                            chess1();
+                    R3: begin
+                        case (showCnt)
+                            3'd0: VGA_pos <= 3'd6;
+                            3'd1: VGA_pos <= 3'd5;
+                            3'd2: VGA_pos <= 3'd1;
+                            3'd3: VGA_pos <= 3'd4;
+                            3'd4: VGA_pos <= 3'd2;
+                            3'd5: VGA_pos <= 3'd3;
+                        endcase
+                        if(showCnt == 3'd6) begin
+                            showCnt <= 3'd0;
+                            VGA_pos <= 4'b1111;
+                            state <= PLAYING;
                         end
-                        //雙人模式
-                        else if(mode == 1'd1) begin
-                            chess2();
-                        end
-                        checkwin();
-                        //遊戲結束
-                        if(winner != 2'd0) begin
-                            state <= 2'd3;
-                        end
+                        else showCnt <= showCnt + 1;
                     end
-                    //結束遊戲
-                    else if(state == 2'd3) begin
-                        state <= 2'd0;
-                        round <= round + 1;
-                        if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
-                        else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
-						else round <= round - 1;
-                        if(round == 3'd5 && winner != 2'd3) begin // 因為 round 的增加會在下一個 clk 來時，所以在這裡要判斷 3'd5
-                            round <= 3'd1;
-                            if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
-                            else state3 <= TIC_TAC_TOE_player2win;
+                    R4: begin
+                        case (showCnt)
+                            3'd0: VGA_pos <= 3'd1;
+                            3'd1: VGA_pos <= 3'd7;
+                            3'd2: VGA_pos <= 3'd6;
+                            3'd3: VGA_pos <= 3'd5;
+                            3'd4: VGA_pos <= 3'd2;
+                            3'd5: VGA_pos <= 3'd3;
+                            3'd6: VGA_pos <= 3'd6;
+                        endcase
+                        if(showCnt == 3'd7) begin
+                            VGA_pos <= 4'b1111;
+                            showCnt <= 3'd0;
+                            state <= PLAYING;
                         end
-                    end
-                end 
-                //遊戲三
-                else if(mode == 2'd2) begin
-                    if(isFirstTime == 1'd1) begin
-                        lives <= 3'd3;
-                        isFirstTime <= ~isFirstTime;
-                    end
-                    case(state3)
-                        IDLE: begin
-                            if(waitCnt == 2'd1) begin
-                                waitCnt <= 2'd0;
-                                case(showCnt)
-                                    3'd0: VGA_pos <= 4'd0;
-                                    3'd1: VGA_pos <= 4'd4;
-                                    3'd2: VGA_pos <= 4'd8;
-                                endcase
-                                if(showCnt == 3'd3) begin
-                                    showCnt <= 3'd0;
-                                    VGA_pos <= 4'b1111;
-                                    state3 <= SHOW_TASK;
-                                end
-                                else showCnt <= showCnt + 1'd1;
-                            end
-                            else waitCnt <= waitCnt + 1'd1;
+                        else showCnt <= showCnt + 1;
                         end
-                        SHOW_TASK: begin
-                        case(round)
+                        default: showCnt <= showCnt;
+                endcase
+                end
+                PLAYING: begin
+                    if (keyPressed != prevKeyPressed) begin
+                        prevKeyPressed <= keyPressed;  // 更新 prevKeyPressed
+                        case (round)
                             R1: begin
-                                case (showCnt)
-                                    3'd0: VGA_pos <= 3'd5;
-                                    3'd1: VGA_pos <= 3'd4;
-                                    3'd2: VGA_pos <= 3'd3;
+                                case (pressCnt)
+                                    3'd0: begin
+                                        if(keyPressed == 4'd5) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd1: begin
+                                        if(keyPressed == 4'd4) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd2: begin
+                                        if(keyPressed == 4'd3) begin
+                                            isCorrect <= 1'd1;
+                                            round <= round + 1'b1;
+                                            state <= WAIT;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
                                 endcase
-                                if(showCnt == 3'd3) begin
-                                    showCnt <= 3'd0;
-                                    VGA_pos <= 4'b1111;
-                                    state3 <= PLAYING;
-                                end
-                                else showCnt <= showCnt + 1;
                             end
                             R2: begin
-                                case (showCnt)
-                                    3'd0: VGA_pos <= 3'd5;
-                                    3'd1: VGA_pos <= 3'd0;
-                                    3'd2: VGA_pos <= 3'd4;
-                                    3'd3: VGA_pos <= 3'd2;
-                                    3'd4: VGA_pos <= 3'd7;
+                                case (pressCnt)
+                                    3'd0: begin
+                                        if(keyPressed == 4'd5) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd1: begin
+                                        if(keyPressed == 4'd0) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd2: begin
+                                        if(keyPressed == 4'd4) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd3: begin
+                                        if(keyPressed == 4'd2) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd4: begin
+                                        if(keyPressed == 4'd7) begin
+                                            isCorrect <= 1'd1;
+                                            round <= round + 1'b1;
+                                            state <= WAIT;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
                                 endcase
-                                if(showCnt == 3'd5) begin
-                                    showCnt <= 3'd0;
-                                    VGA_pos <= 4'b1111;
-                                    state3 <= PLAYING;
-                                end
-                                else showCnt <= showCnt + 1;
                             end
                             R3: begin
-                                case (showCnt)
-                                    3'd0: VGA_pos <= 3'd6;
-                                    3'd1: VGA_pos <= 3'd5;
-                                    3'd2: VGA_pos <= 3'd1;
-                                    3'd3: VGA_pos <= 3'd4;
-                                    3'd4: VGA_pos <= 3'd2;
-                                    3'd5: VGA_pos <= 3'd3;
+                                case (pressCnt)
+                                    3'd0: begin
+                                        if(keyPressed == 4'd6) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd1: begin
+                                        if(keyPressed == 4'd5) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                                        
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end 
+                                    3'd2: begin
+                                        if(keyPressed == 4'd1) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end 
+                                    3'd3: begin
+                                        if(keyPressed == 4'd4) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd4: begin
+                                        if(keyPressed == 4'd2) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
+                                    3'd5: begin
+                                        if(keyPressed == 4'd3) begin
+                                            isCorrect <= 1'd1;
+                                            round <= round + 1'b1;
+                                            state <= WAIT;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end
                                 endcase
-                                if(showCnt == 3'd6) begin
-                                    showCnt <= 3'd0;
-                                    VGA_pos <= 4'b1111;
-                                    state3 <= PLAYING;
-                                end
-                                else showCnt <= showCnt + 1;
                             end
                             R4: begin
-                                case (showCnt)
-                                    3'd0: VGA_pos <= 3'd1;
-                                    3'd1: VGA_pos <= 3'd7;
-                                    3'd2: VGA_pos <= 3'd6;
-                                    3'd3: VGA_pos <= 3'd5;
-                                    3'd4: VGA_pos <= 3'd2;
-                                    3'd5: VGA_pos <= 3'd3;
-                                    3'd6: VGA_pos <= 3'd6;
-                                endcase
-                                if(showCnt == 3'd7) begin
-                                    VGA_pos <= 4'b1111;
-                                    showCnt <= 3'd0;
-                                    state3 <= PLAYING;
-                                end
-                                else showCnt <= showCnt + 1;
-                                end
-                                default: showCnt <= showCnt;
-                        endcase
-                        end
-                        PLAYING: begin
-                            if (keyPressed != prevKeyPressed) begin
-                                prevKeyPressed <= keyPressed;  // 更新 prevKeyPressed
-                                case (round)
-                                    R1: begin
-                                        case (pressCnt)
-                                            3'd0: begin
-                                                if(keyPressed == 4'd5) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd1: begin
-                                                if(keyPressed == 4'd4) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd2: begin
-                                                if(keyPressed == 4'd3) begin
-                                                    isCorrect <= 1'd1;
-                                                    round <= round + 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                        endcase
+                                case (pressCnt)
+                                    3'd0: begin
+                                        if(keyPressed == 4'd1) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end    
+                                    3'd1: begin
+                                        if(keyPressed == 4'd7) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end    
+                                    3'd2: begin
+                                        if(keyPressed == 4'd6) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end 
+                                    3'd3: begin
+                                        if(keyPressed == 4'd5) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
+                                    end 
+                                    3'd4: begin
+                                        if(keyPressed == 4'd2) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
                                     end
-                                    R2: begin
-                                        case (pressCnt)
-                                            3'd0: begin
-                                                if(keyPressed == 4'd5) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd1: begin
-                                                if(keyPressed == 4'd0) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd2: begin
-                                                if(keyPressed == 4'd4) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd3: begin
-                                                if(keyPressed == 4'd2) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd4: begin
-                                                if(keyPressed == 4'd7) begin
-                                                    isCorrect <= 1'd1;
-                                                    round <= round + 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                        endcase
+                                    3'd5: begin
+                                        if(keyPressed == 4'd3) begin
+                                            isCorrect <= 1'd1;
+                                            pressCnt <= pressCnt + 1'b1;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
                                     end
-                                    R3: begin
-                                        case (pressCnt)
-                                            3'd0: begin
-                                                if(keyPressed == 4'd6) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd1: begin
-                                                if(keyPressed == 4'd5) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                                
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end 
-                                            3'd2: begin
-                                                if(keyPressed == 4'd1) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end 
-                                            3'd3: begin
-                                                if(keyPressed == 4'd4) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd4: begin
-                                                if(keyPressed == 4'd2) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd5: begin
-                                                if(keyPressed == 4'd3) begin
-                                                    isCorrect <= 1'd1;
-                                                    round <= round + 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                        endcase
-                                    end
-                                    R4: begin
-                                        case (pressCnt)
-                                            3'd0: begin
-                                                if(keyPressed == 4'd1) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end    
-                                            3'd1: begin
-                                                if(keyPressed == 4'd7) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end    
-                                            3'd2: begin
-                                                if(keyPressed == 4'd6) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end 
-                                            3'd3: begin
-                                                if(keyPressed == 4'd5) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end 
-                                            3'd4: begin
-                                                if(keyPressed == 4'd2) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd5: begin
-                                                if(keyPressed == 4'd3) begin
-                                                    isCorrect <= 1'd1;
-                                                    pressCnt <= pressCnt + 1'b1;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                            3'd6: begin
-                                                if(keyPressed == 4'd6) begin
-                                                    isCorrect <= 1'd1;
-                                                    state3 <= WAIT;
-                                                end
-                                                else begin
-                                                    isCorrect <= 1'd0;
-                                                    lives <= lives - 1'b1;
-                                                    state3 <= WAIT;
-                                                end
-                                            end
-                                        endcase
+                                    3'd6: begin
+                                        if(keyPressed == 4'd6) begin
+                                            isCorrect <= 1'd1;
+                                            state <= WAIT;
+                                        end
+                                        else begin
+                                            isCorrect <= 1'd0;
+                                            lives <= lives - 1'b1;
+                                            state <= WAIT;
+                                        end
                                     end
                                 endcase
-                                VGA_pos <= keyPressed;
-                                        
                             end
-                        end
-                        WAIT: begin
-                            if(waitCnt == 3'd1) begin
-                                waitCnt <= 3'd0;
-                                VGA_pos <= 4'b1111;
-                                pressCnt <= 3'd0;
-                                if(lives > 2'd0) begin
-                                    if(pressCnt == 3'd6 && isCorrect) begin
-                                        state3 <= WIN;
-                                    end
-                                    else begin										
-                                        isCorrect <= ~isCorrect;
-                                        state3 <= IDLE;
-                                    end
-                                end
-                                else state3 <= GAME_OVER;
-                            end
-                            else waitCnt <= waitCnt + 2'b1;
-                        end
-                        GAME_OVER: begin
-                            case(waitCnt)   // 顯示一個大叉叉，由上到下左到右
-                                3'd0: VGA_pos <= 4'd0;
-                                3'd1: VGA_pos <= 4'd2;
-                                3'd2: VGA_pos <= 4'd4;
-                                3'd3: VGA_pos <= 4'd6;
-                                3'd4: VGA_pos <= 4'd8;
-                            endcase
-                            waitCnt <= waitCnt + 1'b1;
-                        end
-                        WIN: begin
-                        case(waitCnt)   // 顯示一個大圈圈
-                                3'd0: VGA_pos <= 4'd1;
-                                3'd1: VGA_pos <= 4'd3;
-                                3'd2: VGA_pos <= 4'd5;
-                                3'd3: VGA_pos <= 4'd7;
-                                3'd4: VGA_pos <= 4'd4;
                         endcase
-                        waitCnt <= waitCnt + 1'd1;
-                        end
-                    endcase
+                        VGA_pos <= keyPressed;
+                                
+                    end
                 end
+                WAIT: begin
+                    if(waitCnt == 3'd1) begin
+                        waitCnt <= 3'd0;
+                        VGA_pos <= 4'b1111;
+                        pressCnt <= 3'd0;
+                        if(lives > 2'd0) begin
+                            if(pressCnt == 3'd6 && isCorrect) begin
+                                state <= WIN;
+                            end
+                            else begin										
+                                isCorrect <= ~isCorrect;
+                                state <= IDLE;
+                            end
+                        end
+                        else state <= GAME_OVER;
+                    end
+                    else waitCnt <= waitCnt + 2'b1;
+                end
+                GAME_OVER: begin
+                    case(waitCnt)   // 顯示一個大叉叉，由上到下左到右
+                        3'd0: VGA_pos <= 4'd0;
+                        3'd1: VGA_pos <= 4'd2;
+                        3'd2: VGA_pos <= 4'd4;
+                        3'd3: VGA_pos <= 4'd6;
+                        3'd4: VGA_pos <= 4'd8;
+                    endcase
+                    waitCnt <= waitCnt + 1'b1;
+                end
+                WIN: begin
+                case(waitCnt)   // 顯示一個大圈圈
+                        3'd0: VGA_pos <= 4'd1;
+                        3'd1: VGA_pos <= 4'd3;
+                        3'd2: VGA_pos <= 4'd5;
+                        3'd3: VGA_pos <= 4'd7;
+                        3'd4: VGA_pos <= 4'd4;
+                endcase
+                waitCnt <= waitCnt + 1'd1;
+                end
+            endcase
+        end
+    end
+endmodule
+
+module divider #(
+    parameter TIME_EXPIRE = 32'd250000 
+)(
+    input clk,
+    input rst,
+    output reg divClk
+);
+    reg [31:0] cnt;
+
+    always @(posedge clk or negedge rst) begin
+        if(!rst) begin
+            cnt <= 0;
+            divClk <= 1'b0;
+        end
+        else begin
+            if(cnt == TIME_EXPIRE - 1) begin
+                cnt <= 32'd0;
+                divClk <= ~divClk;
             end
             else begin
-                state3 <= IDLE;
-                isFirstTime <= 1'b1;
-                if( mode != preMode ) begin
-                    round <= 1;
-                    lives <= 3'd6;
-                    AwinCNT <= 3'd6;
-                    BwinCNT <= 3'd6;
-                end
-					preMode <= mode; 
+                cnt <= cnt + 1'b1;
             end
         end
-        
     end
 endmodule
 
@@ -911,32 +1112,6 @@ module checkKeypad(
     end
 endmodule
 
-module divider #(
-    parameter TIME_EXPIRE = 32'd250000 
-)(
-    input clk,
-    input rst,
-    output reg divClk
-);
-    reg [31:0] cnt;
-
-    always @(posedge clk or negedge rst) begin
-        if(!rst) begin
-            cnt <= 0;
-            divClk <= 1'b0;
-        end
-        else begin
-            if(cnt == TIME_EXPIRE - 1) begin
-                cnt <= 32'd0;
-                divClk <= ~divClk;
-            end
-            else begin
-                cnt <= cnt + 1'b1;
-            end
-        end
-    end
-endmodule
-
 module sevenDisplay(
 	input [3:0] in,
 	output reg [6:0] out
@@ -967,7 +1142,7 @@ endmodule
 
 module vgaDisplay(
     input  clk, rst,
-    input  [3:0] state3,
+    input  [3:0] state,
     input  [3:0] VGA_pos,
     input  isCircle,
     output hsync, vsync,
@@ -1049,25 +1224,25 @@ module vgaDisplay(
         end
         else begin
             // 狀態切換
-            if(state3 == SHOW_TASK || (prevState != state3 && state3 != WAIT)) begin
+            if(state == SHOW_TASK || (prevState != state && state != WAIT)) begin
                 for(i=0;i<9;i=i+1) grid[i] <= 2'b00;
-                prevState <= state3;
+                prevState <= state;
             end
             // 模式一、二 的 玩家一贏
-            if(state3 == TIC_TAC_TOE_player1win) begin
+            if(state == TIC_TAC_TOE_player1win) begin
                 for(i = 0 ; i < 9 ; i = i + 1) begin
                     grid[i] <= 2'd0;
                 end
             end
             // 模式一、二 的 玩家二贏
-            if(state3 == TIC_TAC_TOE_player2win) begin
+            if(state == TIC_TAC_TOE_player2win) begin
                 for(i = 0 ; i < 9 ; i = i + 1) begin
                     grid[i] <= 2'd1;
                 end
             end
             // 當 VGA_pos<9 時 => 寫入對應格
             if(VGA_pos < 4'd9) begin
-                case(state3)
+                case(state)
                     IDLE, SHOW_TASK: begin
                         grid[VGA_pos] <= 2'd2;
                     end
@@ -1126,7 +1301,7 @@ module vgaDisplay(
                         end
                     end
                     2'b10: begin
-                        if(state3 == IDLE) begin
+                        if(state == IDLE) begin
                             if ((((local_x - CELL_SIZE/2)**2 + (local_y - CELL_SIZE/2)**2) <= (CELL_SIZE/3)**2)) begin
                                 VGA_R <= 4'hf;
                                 VGA_G <= 4'hf;
@@ -1137,7 +1312,7 @@ module vgaDisplay(
                             // 空心圓
                             if ((((local_x - CELL_SIZE/2)**2 + (local_y - CELL_SIZE/2)**2) >= (CELL_SIZE/3 - 6)**2) &&
                                 (((local_x - CELL_SIZE/2)**2 + (local_y - CELL_SIZE/2)**2) <= (CELL_SIZE/3 + 6)**2)) begin
-                                if(state3 == WIN) begin
+                                if(state == WIN) begin
                                     VGA_R <= 4'h0; // 綠色
                                     VGA_G <= 4'hf;
                                     VGA_B <= 4'h0;
@@ -1164,7 +1339,6 @@ endmodule
 module dotMatrix(
     input rst,
     input clk,
-    input start,
     input [2:0] round,
     output reg [7:0] dot_row,
     output reg [7:0] dot_col
@@ -1180,82 +1354,79 @@ module dotMatrix(
         end
         else
         begin
-            if( start ) begin
-                output_cnt <= output_cnt + 1;  
-                case( output_cnt )
-                    3'd0 : dot_row <= 8'b01111111;
-                    3'd1 : dot_row <= 8'b10111111;
-                    3'd2 : dot_row <= 8'b11011111;
-                    3'd3 : dot_row <= 8'b11101111;
-                    3'd4 : dot_row <= 8'b11110111;
-                    3'd5 : dot_row <= 8'b11111011;
-                    3'd6 : dot_row <= 8'b11111101;
-                    3'd7 : dot_row <= 8'b11111110;
-                endcase 
+            output_cnt <= output_cnt + 1;  
+            case( output_cnt )
+                3'd0 : dot_row <= 8'b01111111;
+                3'd1 : dot_row <= 8'b10111111;
+                3'd2 : dot_row <= 8'b11011111;
+                3'd3 : dot_row <= 8'b11101111;
+                3'd4 : dot_row <= 8'b11110111;
+                3'd5 : dot_row <= 8'b11111011;
+                3'd6 : dot_row <= 8'b11111101;
+                3'd7 : dot_row <= 8'b11111110;
+            endcase 
 
-                if( round == 3'd1 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00010000;
-                        3'd2 : dot_col <= 8'b00110000;
-                        3'd3 : dot_col <= 8'b01010000;
-                        3'd4 : dot_col <= 8'b00010000;
-                        3'd5 : dot_col <= 8'b00010000;
-                        3'd6 : dot_col <= 8'b01111100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd2 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00111100;
-                        3'd2 : dot_col <= 8'b00000100;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00100000;
-                        3'd5 : dot_col <= 8'b00100000;
-                        3'd6 : dot_col <= 8'b00111100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd3 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00111100;
-                        3'd2 : dot_col <= 8'b00000100;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00000100;
-                        3'd5 : dot_col <= 8'b00111100;
-                        3'd6 : dot_col <= 8'b00000000;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd4) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00100100;
-                        3'd2 : dot_col <= 8'b00100100;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00000100;
-                        3'd5 : dot_col <= 8'b00000100;
-                        3'd6 : dot_col <= 8'b00000100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else if( round == 3'd5 ) begin
-                    case( output_cnt )
-                        3'd0 : dot_col <= 8'b00000000;
-                        3'd1 : dot_col <= 8'b00111100;
-                        3'd2 : dot_col <= 8'b00100000;
-                        3'd3 : dot_col <= 8'b00111100;
-                        3'd4 : dot_col <= 8'b00000100;
-                        3'd5 : dot_col <= 8'b00000100;
-                        3'd6 : dot_col <= 8'b00111100;
-                        3'd7 : dot_col <= 8'b00000000;
-                    endcase
-                end
-                else dot_col <= 8'b0; 
+            if( round == 3'd1 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00010000;
+                    3'd2 : dot_col <= 8'b00110000;
+                    3'd3 : dot_col <= 8'b01010000;
+                    3'd4 : dot_col <= 8'b00010000;
+                    3'd5 : dot_col <= 8'b00010000;
+                    3'd6 : dot_col <= 8'b01111100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
             end
-            else dot_col <= 8'b0;
+            else if( round == 3'd2 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00111100;
+                    3'd2 : dot_col <= 8'b00000100;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00100000;
+                    3'd5 : dot_col <= 8'b00100000;
+                    3'd6 : dot_col <= 8'b00111100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else if( round == 3'd3 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00111100;
+                    3'd2 : dot_col <= 8'b00000100;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00000100;
+                    3'd5 : dot_col <= 8'b00111100;
+                    3'd6 : dot_col <= 8'b00000000;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else if( round == 3'd4) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00100100;
+                    3'd2 : dot_col <= 8'b00100100;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00000100;
+                    3'd5 : dot_col <= 8'b00000100;
+                    3'd6 : dot_col <= 8'b00000100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else if( round == 3'd5 ) begin
+                case( output_cnt )
+                    3'd0 : dot_col <= 8'b00000000;
+                    3'd1 : dot_col <= 8'b00111100;
+                    3'd2 : dot_col <= 8'b00100000;
+                    3'd3 : dot_col <= 8'b00111100;
+                    3'd4 : dot_col <= 8'b00000100;
+                    3'd5 : dot_col <= 8'b00000100;
+                    3'd6 : dot_col <= 8'b00111100;
+                    3'd7 : dot_col <= 8'b00000000;
+                endcase
+            end
+            else dot_col <= 8'b0; 
         end
 
     end
