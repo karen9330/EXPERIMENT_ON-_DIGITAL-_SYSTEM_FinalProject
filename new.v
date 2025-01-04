@@ -401,20 +401,23 @@ module gameController(
                     //待輸入mode
                     if(state == 2'd0) begin
                         if( start == 1 ) begin
-                            state3 <= IDLE;
+                            state3 <= PLAYING;
+                            VGA_pos <= 4'b1111;
                             mode <= chooseMode;
                             state <= 2'd1;
                         end
                     end
                     //遊戲初始化
                     else if(state == 2'd1) begin
+                        if(round == 3'd1) begin
+                            AwinCNT <= 3'd0;
+                            BwinCNT <= 3'd0;
+                        end
                         state <= 2'd2;
                         board1 <= 9'd0;
                         board2 <= 9'd0;
                         winner <= 2'd0;
                         turn <= 1'd0;
-                        AwinCNT <= 3'd0;
-                        BwinCNT <= 3'd0;
                     end
                     //遊戲進行中
                     else if(state == 2'd2) begin
@@ -440,7 +443,7 @@ module gameController(
                         if( winner == 2'd1 ) AwinCNT <= AwinCNT + 1;
                         else if( winner == 2'd2 ) BwinCNT <= BwinCNT + 1;
 						else round <= round - 1;
-                        if(round == 3'd5 && winner != 2'd3) begin // 因為 round 的增加會在下一個 clk 來時，所以在這裡要判斷 3'd5
+                        if(round == 3'd5 && winner != 2'd3) begin 
                             round <= 3'd1;
                             if(AwinCNT > BwinCNT) state3 <= TIC_TAC_TOE_player1win;
                             else state3 <= TIC_TAC_TOE_player2win;
