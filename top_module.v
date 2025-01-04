@@ -12,6 +12,7 @@ module top_module(
     input debug_w,
     output hsync, vsync,
     output [3:0] VGA_R, VGA_G, VGA_B,
+    output [6:0] display,
     output [6:0] displayA, // mode 12
     output [6:0] displayB, // mode 12 
     output [3:0] keypadRow,
@@ -481,7 +482,7 @@ module gameController(
                 if((chooseMode == 2'd0) || (chooseMode == 2'd1)) begin
                     //待輸入mode
                     if(state == 2'd0) begin
-                        state3 <= IDLE;
+                        state3 <= PLAYING;
                         mode <= chooseMode;
                         state <= 2'd1;
                     end
@@ -531,6 +532,9 @@ module gameController(
                 //遊戲三
                 else if(chooseMode == 2'd2) begin
                     if(isFirstTime == 1'd1) begin
+                        state3 <= IDLE;
+                        AwinCNT <= 3'd6;
+                        BwinCNT <= 3'd6;
                         lives <= 3'd3;
                         isFirstTime <= ~isFirstTime;
                     end
@@ -1271,7 +1275,7 @@ module dotMatrix(
                     3'd7 : dot_row <= 8'b11111110;
                 endcase 
 
-                if( round <= 3'd1 ) begin
+                if( round == 3'd1 ) begin
                     case( output_cnt )
                         3'd0 : dot_col <= 8'b00000000;
                         3'd1 : dot_col <= 8'b00010000;
@@ -1283,7 +1287,7 @@ module dotMatrix(
                         3'd7 : dot_col <= 8'b00000000;
                     endcase
                 end
-                else if( round <= 3'd2 ) begin
+                else if( round == 3'd2 ) begin
                     case( output_cnt )
                         3'd0 : dot_col <= 8'b00000000;
                         3'd1 : dot_col <= 8'b00111100;
@@ -1295,7 +1299,7 @@ module dotMatrix(
                         3'd7 : dot_col <= 8'b00000000;
                     endcase
                 end
-                else if( round <= 3'd3 ) begin
+                else if( round == 3'd3 ) begin
                     case( output_cnt )
                         3'd0 : dot_col <= 8'b00000000;
                         3'd1 : dot_col <= 8'b00111100;
@@ -1307,7 +1311,7 @@ module dotMatrix(
                         3'd7 : dot_col <= 8'b00000000;
                     endcase
                 end
-                else if( round <= 3'd4) begin
+                else if( round == 3'd4) begin
                     case( output_cnt )
                         3'd0 : dot_col <= 8'b00000000;
                         3'd1 : dot_col <= 8'b00100100;
@@ -1319,7 +1323,7 @@ module dotMatrix(
                         3'd7 : dot_col <= 8'b00000000;
                     endcase
                 end
-                else if( round <= 3'd5 ) begin
+                else if( round == 3'd5 ) begin
                     case( output_cnt )
                         3'd0 : dot_col <= 8'b00000000;
                         3'd1 : dot_col <= 8'b00111100;
